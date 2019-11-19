@@ -23,17 +23,38 @@ import androidx.core.app.ActivityCompat;
 import androidx.appcompat.app.AlertDialog;
 import android.os.Build;
 import android.content.DialogInterface;
+import android.telephony.SmsManager;
+import android.widget.TextView;
 
 import static android.Manifest.permission.CALL_PHONE;
 import static android.Manifest.permission.SEND_SMS;
 
+import com.github.nkzawa.socketio.client.IO;
+import com.github.nkzawa.socketio.client.Socket;
+import com.github.nkzawa.emitter.Emitter;
+import java.net.URISyntaxException;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
 
-    private Button button;
+    private Button buttonCall, buttonSendSMS, buttonConnectSocket, buttonEmitTest;
+    private TextView textConnectionStatus;
 
     private static final int PERMISSION_REQUEST_CODE = 200;
     private View view;
+
+    private Socket mSocket;
+    {
+        try {
+            mSocket = IO.socket("https://nhom-khkt-hiep-phuoc.herokuapp.com/");
+        } catch (URISyntaxException e) {
+//            e.printStackTrace();
+            Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content),
+                    "Error - IO socket failed", Snackbar.LENGTH_LONG);
+            snackbar.show();
+        }
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -51,30 +72,179 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             }
         });
 
-
-        button = (Button) findViewById(R.id.buttonCall);
-
-        button.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View arg0) {
+        /* Call Handler */
+        buttonCall = (Button) findViewById(R.id.buttonCall);
+        buttonCall.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View view) {
                 Intent callIntent = new Intent(Intent.ACTION_CALL);
-                callIntent.setData(Uri.parse("tel:0377778888"));
+                callIntent.setData(Uri.parse("tel:0387358924"));
 
                 if (ContextCompat.checkSelfPermission(MainActivity.this,
                         Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) {
-                    ActivityCompat.requestPermissions(
-                            MainActivity.this,
-                            new String[]{Manifest.permission.CALL_PHONE},
-                            PERMISSION_REQUEST_CODE);
+                    ActivityCompat.requestPermissions(MainActivity.this,
+                        new String[]{CALL_PHONE},
+                        PERMISSION_REQUEST_CODE);
                 }
-                Log.d("MyApp","CALL_PHONE");
                 startActivity(callIntent);
             }
         });
 
+        /* Send SMS Handler */
+        buttonSendSMS = (Button) findViewById(R.id.buttonSendSMS);
+        buttonSendSMS.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View view) {
+                if (ContextCompat.checkSelfPermission(MainActivity.this,
+                        SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
+                    ActivityCompat.requestPermissions(MainActivity.this,
+                        new String[]{SEND_SMS},
+                        PERMISSION_REQUEST_CODE);
+                }
+                SmsManager smsManager = SmsManager.getDefault();
+                smsManager.sendTextMessage("0387358924", null, "Hello There!", null, null);
+            }
+        });
+
+        /* Permission Handler */
         Button check_permission = (Button) findViewById(R.id.check_permission);
         Button request_permission = (Button) findViewById(R.id.request_permission);
         check_permission.setOnClickListener(this);
         request_permission.setOnClickListener(this);
+
+        /* Socket handler */
+        buttonConnectSocket = (Button) findViewById(R.id.buttonConnectSocket);
+        buttonConnectSocket.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View view) {
+                Snackbar.make(view, "Start to connect to Socket.", Snackbar.LENGTH_LONG).show();
+                mSocket.connect();
+            }
+        });
+
+        textConnectionStatus = (TextView) findViewById(R.id.textConnectionStatus);
+
+        buttonEmitTest = (Button) findViewById(R.id.buttonEmitTest);
+        buttonEmitTest.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View view) {
+                try {
+                    JSONObject obj = new JSONObject();
+                    obj.put("key", "school_1");
+                    mSocket.emit("select-school", obj);
+                    Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content),
+                            "Test", Snackbar.LENGTH_LONG);
+                    snackbar.show();
+                } catch (JSONException e) {
+//                    e.printStackTrace();
+                    Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content),
+                            "Error - Emit test - Extract JSON failed", Snackbar.LENGTH_LONG);
+                    snackbar.show();
+                }
+            }
+        });
+
+        mSocket.on("connection", new Emitter.Listener() {
+            @Override public void call(final Object... args) {
+                runOnUiThread(new Runnable() {
+                    @Override public void run() {
+                        JSONObject data = (JSONObject) args[0];
+                        textConnectionStatus.setText("connected");
+                        Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content),
+                        "Connected", Snackbar.LENGTH_LONG);
+                        snackbar.show();
+                    }
+                });
+            }
+        });
+
+        mSocket.on("vehicles-result", new Emitter.Listener() {
+            @Override public void call(final Object... args) {
+                runOnUiThread(new Runnable() {
+                    @Override public void run() {
+                        JSONObject data = (JSONObject) args[0];
+                        textConnectionStatus.setText("received");
+                        Intent callIntent = new Intent(Intent.ACTION_CALL);
+                        callIntent.setData(Uri.parse("tel:0387358924"));
+
+                        if (ContextCompat.checkSelfPermission(MainActivity.this,
+                                Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) {
+                            ActivityCompat.requestPermissions(MainActivity.this,
+                                    new String[]{CALL_PHONE},
+                                    PERMISSION_REQUEST_CODE);
+                        }
+                        startActivity(callIntent);
+                        Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content),
+                                "Received Test", Snackbar.LENGTH_LONG);
+                        snackbar.show();
+                    }
+                });
+            }
+        });
+
+        mSocket.on("call", new Emitter.Listener() {
+            @Override public void call(final Object... args) {
+                runOnUiThread(new Runnable() {
+                    @Override public void run() {
+                        JSONObject data = (JSONObject) args[0];
+                        try {
+                            Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content),
+                                    "Received Call", Snackbar.LENGTH_LONG);
+                            snackbar.show();
+
+                            String phoneNumber = data.getString("phoneNumber");
+
+                            textConnectionStatus.setText("received");
+                            Intent callIntent = new Intent(Intent.ACTION_CALL);
+                            callIntent.setData(Uri.parse("tel:" + phoneNumber));
+
+                            if (ContextCompat.checkSelfPermission(MainActivity.this,
+                                    Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) {
+                                ActivityCompat.requestPermissions(MainActivity.this,
+                                        new String[]{CALL_PHONE},
+                                        PERMISSION_REQUEST_CODE);
+                            }
+                            startActivity(callIntent);
+
+
+                        } catch (JSONException e) {
+//                            e.printStackTrace();
+                            Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content),
+                                    "Error - Received Call - Extract JSON failed", Snackbar.LENGTH_LONG);
+                            snackbar.show();
+                        }
+                    }
+                });
+            }
+        });
+
+        mSocket.on("sendSMS", new Emitter.Listener() {
+            @Override public void call(final Object... args) {
+                runOnUiThread(new Runnable() {
+                    @Override public void run() {
+                        JSONObject data = (JSONObject) args[0];
+                        try {
+                            String phoneNumber = data.getString("phoneNumber");
+                            String message = data.getString("message");
+
+                            if (ContextCompat.checkSelfPermission(MainActivity.this,
+                                    SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
+                                ActivityCompat.requestPermissions(MainActivity.this,
+                                        new String[]{SEND_SMS},
+                                        PERMISSION_REQUEST_CODE);
+                            }
+                            SmsManager smsManager = SmsManager.getDefault();
+                            smsManager.sendTextMessage(phoneNumber, null, message, null, null);
+                            Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content),
+                                    "Send SMS to " + phoneNumber + " - Extract JSON failed", Snackbar.LENGTH_LONG);
+                            snackbar.show();
+                        } catch (JSONException e) {
+//                            e.printStackTrace();
+                            Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content),
+                                    "Error - Received SendSMS - Extract JSON failed", Snackbar.LENGTH_LONG);
+                            snackbar.show();
+                        }
+
+                    }
+                });
+            }
+        });
     }
 
     @Override
@@ -198,6 +368,14 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             .setNegativeButton("Cancel", null)
             .create()
             .show();
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+
+        mSocket.disconnect();
+//        mSocket.off("new message", onNewMessage);
     }
 
 }
