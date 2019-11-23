@@ -229,10 +229,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                                         new String[]{SEND_SMS},
                                         PERMISSION_REQUEST_CODE);
                             }
-                            SmsManager smsManager = SmsManager.getDefault();
-                            smsManager.sendTextMessage(phoneNumber, null, message, null, null);
+//                            SmsManager smsManager = SmsManager.getDefault();
+//                            smsManager.sendTextMessage(phoneNumber, null, message, null, null);
+
+                            SMSUtils.sendSMS(getApplicationContext(), phoneNumber, message);
+
                             Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content),
-                                    "Send SMS to " + phoneNumber + " - Extract JSON failed", Snackbar.LENGTH_LONG);
+                                    "Send SMS to " + phoneNumber + " - with message " + message, Snackbar.LENGTH_LONG);
                             snackbar.show();
                         } catch (JSONException e) {
 //                            e.printStackTrace();
