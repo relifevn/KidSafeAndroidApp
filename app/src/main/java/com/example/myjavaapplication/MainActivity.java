@@ -25,9 +25,12 @@ import android.os.Build;
 import android.content.DialogInterface;
 import android.telephony.SmsManager;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import static android.Manifest.permission.ACCESS_COARSE_LOCATION;
 import static android.Manifest.permission.CALL_PHONE;
 import static android.Manifest.permission.SEND_SMS;
+import static android.Manifest.permission.ACCESS_FINE_LOCATION;
 
 import com.github.nkzawa.socketio.client.IO;
 import com.github.nkzawa.socketio.client.Socket;
@@ -43,16 +46,32 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     private static final int PERMISSION_REQUEST_CODE = 200;
     private View view;
+    LocationFinder finder;
+    double longitude = 0.0, latitude = 0.0;
+
+    private static final String TAG = "MyActivity";
 
     private Socket mSocket;
     {
         try {
             mSocket = IO.socket("https://nhom-khkt-hiep-phuoc.herokuapp.com/");
         } catch (URISyntaxException e) {
-//            e.printStackTrace();
-            Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content),
-                    "Error - IO socket failed", Snackbar.LENGTH_LONG);
-            snackbar.show();
+            this.showSnackBar("Error - IO socket failed");
+        }
+    }
+
+    private void showSnackBar(String msg) {
+        Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content), msg, Snackbar.LENGTH_LONG);
+        snackbar.show();
+    }
+
+    private void showLocation() {
+        if (finder.canGetLocation()) {
+            latitude = finder.getLatitude();
+            longitude = finder.getLongitude();
+            this.showSnackBar("lat-lng " + latitude + " — " + longitude);
+        } else {
+            this.showSnackBar("Location permission not granted" + latitude + " — " + longitude);
         }
     }
 
@@ -71,6 +90,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                         .setAction("Action", null).show();
             }
         });
+
+        finder = new LocationFinder(this);
 
         /* Call Handler */
         buttonCall = (Button) findViewById(R.id.buttonCall);
@@ -273,16 +294,28 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     }
 
+    private boolean isPermissionGranted(int permission) {
+        return permission == PackageManager.PERMISSION_GRANTED;
+    }
+
     private boolean checkPermission() {
         int result_CALL_PHONE = ContextCompat.checkSelfPermission(getApplicationContext(), CALL_PHONE);
         int result_SEND_SMS = ContextCompat.checkSelfPermission(getApplicationContext(), SEND_SMS);
+        int result_ACCESS_FINE_LOCATION = ContextCompat.checkSelfPermission(getApplicationContext(), ACCESS_FINE_LOCATION);
+        int result_ACCESS_COARSE_LOCATION = ContextCompat.checkSelfPermission(getApplicationContext(), ACCESS_COARSE_LOCATION);
 
-        return result_CALL_PHONE == PackageManager.PERMISSION_GRANTED
-                && result_SEND_SMS == PackageManager.PERMISSION_GRANTED;
+        return isPermissionGranted(result_CALL_PHONE)
+                && isPermissionGranted(result_SEND_SMS)
+                && isPermissionGranted(result_ACCESS_FINE_LOCATION)
+                && isPermissionGranted(result_ACCESS_COARSE_LOCATION);
     }
 
     private void requestPermission() {
-        ActivityCompat.requestPermissions(this, new String[]{CALL_PHONE, SEND_SMS}, PERMISSION_REQUEST_CODE);
+        ActivityCompat.requestPermissions(
+                this,
+                new String[]{CALL_PHONE, SEND_SMS, ACCESS_FINE_LOCATION, ACCESS_COARSE_LOCATION},
+                PERMISSION_REQUEST_CODE
+        );
     }
 
     @Override
