@@ -39,6 +39,9 @@ import com.github.nkzawa.socketio.client.IO;
 import com.github.nkzawa.socketio.client.Socket;
 import com.github.nkzawa.emitter.Emitter;
 import java.net.URISyntaxException;
+import java.util.Timer;
+import java.util.TimerTask;
+
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -49,12 +52,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     private static final int PERMISSION_REQUEST_CODE = 200;
     private View view;
-    double longitude = 0.0, latitude = 0.0;
 
-    private static final String TAG = "MyActivity";
-
-    public Context applicationContext;
-    Intent locationIntent = null;
+    private static final String TAG = "MainActivity";
 
     private LocationManager mLocationManager = null;
     private static final int LOCATION_INTERVAL = 1000;
@@ -121,14 +120,15 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     }
 
     LocationListener[] mLocationListeners = new LocationListener[]{
-            new LocationListener(LocationManager.GPS_PROVIDER),
-            new LocationListener(LocationManager.NETWORK_PROVIDER)
+        new LocationListener(LocationManager.GPS_PROVIDER),
+        new LocationListener(LocationManager.NETWORK_PROVIDER)
     };
 
     private Socket mSocket;
     {
         try {
-            mSocket = IO.socket("https://nhom-khkt-hiep-phuoc.herokuapp.com/");
+            mSocket = IO.socket("https://khkt-thcs-hiep-phuoc-server.herokuapp.com?deviceType=flameDetectorAndroid");
+            mSocket.connect();
         } catch (URISyntaxException e) {
             this.showSnackBar("Error - IO socket failed");
         }
@@ -172,57 +172,67 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             }
         });
 
-        // use this to start and trigger a service
-//        applicationContext = this.getApplicationContext();
-//        locationIntent = new Intent(applicationContext, LocationService.class);
-//        applicationContext.startService(locationIntent);
         if (mLocationManager == null) {
             mLocationManager = (LocationManager) this.getApplicationContext().getSystemService(Context.LOCATION_SERVICE);
         }
         initLocationService();
-
-        /* Call Handler */
-        buttonCall = (Button) findViewById(R.id.buttonCall);
-        buttonCall.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View view) {
-                Intent callIntent = new Intent(Intent.ACTION_CALL);
-                callIntent.setData(Uri.parse("tel:0387358924"));
-
-                if (ContextCompat.checkSelfPermission(MainActivity.this,
-                        Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) {
-                    ActivityCompat.requestPermissions(MainActivity.this,
-                        new String[]{CALL_PHONE},
-                        PERMISSION_REQUEST_CODE);
-                }
-                startActivity(callIntent);
-            }
-        });
-
-        /* Send SMS Handler */
-        buttonSendSMS = (Button) findViewById(R.id.buttonSendSMS);
-        buttonSendSMS.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View view) {
-                if (ContextCompat.checkSelfPermission(MainActivity.this,
-                        SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
-                    ActivityCompat.requestPermissions(MainActivity.this,
-                        new String[]{SEND_SMS},
-                        PERMISSION_REQUEST_CODE);
-                }
-                SmsManager smsManager = SmsManager.getDefault();
-                smsManager.sendTextMessage("0387358924", null, "Hello There!", null, null);
-            }
-        });
-
-        /* Test GPS */
-        buttonGPSTest = (Button) findViewById(R.id.buttonGPSTest);
-        buttonGPSTest.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View view) {
+        new Timer().scheduleAtFixedRate(new TimerTask(){
+            @Override
+            public void run(){
                 if (!isInitLocationService) {
                     initLocationService();
                 }
-                getLocation();
+                if (isInitLocationService) {
+                    Location location = getLocation();
+                    if (location != null) {
+                        mSocket.emit("gps-post", "{\"lat\":" + location.getLatitude() + ",\"lng\":" + location.getLongitude() + "}");
+                    }
+                }
             }
-        });
+        },0,5000);
+
+        /* Call Handler */
+//        buttonCall = (Button) findViewById(R.id.buttonCall);
+//        buttonCall.setOnClickListener(new View.OnClickListener() {
+//            public void onClick(View view) {
+//                Intent callIntent = new Intent(Intent.ACTION_CALL);
+//                callIntent.setData(Uri.parse("tel:0387358924"));
+//
+//                if (ContextCompat.checkSelfPermission(MainActivity.this,
+//                        Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) {
+//                    ActivityCompat.requestPermissions(MainActivity.this,
+//                        new String[]{CALL_PHONE},
+//                        PERMISSION_REQUEST_CODE);
+//                }
+//                startActivity(callIntent);
+//            }
+//        });
+
+        /* Send SMS Handler */
+//        buttonSendSMS = (Button) findViewById(R.id.buttonSendSMS);
+//        buttonSendSMS.setOnClickListener(new View.OnClickListener() {
+//            public void onClick(View view) {
+//                if (ContextCompat.checkSelfPermission(MainActivity.this,
+//                        SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
+//                    ActivityCompat.requestPermissions(MainActivity.this,
+//                        new String[]{SEND_SMS},
+//                        PERMISSION_REQUEST_CODE);
+//                }
+//                SmsManager smsManager = SmsManager.getDefault();
+//                smsManager.sendTextMessage("0387358924", null, "Hello There!", null, null);
+//            }
+//        });
+
+        /* Test GPS */
+//        buttonGPSTest = (Button) findViewById(R.id.buttonGPSTest);
+//        buttonGPSTest.setOnClickListener(new View.OnClickListener() {
+//            public void onClick(View view) {
+//                if (!isInitLocationService) {
+//                    initLocationService();
+//                }
+//                getLocation();
+//            }
+//        });
 
         /* Permission Handler */
         Button check_permission = (Button) findViewById(R.id.check_permission);
@@ -231,44 +241,41 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         request_permission.setOnClickListener(this);
 
         /* Socket handler */
-        buttonConnectSocket = (Button) findViewById(R.id.buttonConnectSocket);
-        buttonConnectSocket.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View view) {
-                Snackbar.make(view, "Start to connect to Socket.", Snackbar.LENGTH_LONG).show();
-                mSocket.connect();
-            }
-        });
+//        buttonConnectSocket = (Button) findViewById(R.id.buttonConnectSocket);
+//        buttonConnectSocket.setOnClickListener(new View.OnClickListener() {
+//            public void onClick(View view) {
+//                Snackbar.make(view, "Start to connect to Socket.", Snackbar.LENGTH_LONG).show();
+//                mSocket.connect();
+//            }
+//        });
 
         textConnectionStatus = (TextView) findViewById(R.id.textConnectionStatus);
 
-        buttonEmitTest = (Button) findViewById(R.id.buttonEmitTest);
-        buttonEmitTest.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View view) {
-                try {
-                    JSONObject obj = new JSONObject();
-                    obj.put("key", "school_1");
-                    mSocket.emit("select-school", obj);
-                    Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content),
-                            "Test", Snackbar.LENGTH_LONG);
-                    snackbar.show();
-                } catch (JSONException e) {
-//                    e.printStackTrace();
-                    Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content),
-                            "Error - Emit test - Extract JSON failed", Snackbar.LENGTH_LONG);
-                    snackbar.show();
-                }
-            }
-        });
+//        buttonEmitTest = (Button) findViewById(R.id.buttonEmitTest);
+//        buttonEmitTest.setOnClickListener(new View.OnClickListener() {
+//            public void onClick(View view) {
+//                try {
+//                    JSONObject obj = new JSONObject();
+//                    obj.put("key", "school_1");
+//                    mSocket.emit("select-school", obj);
+//                    Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content),
+//                            "Test", Snackbar.LENGTH_LONG);
+//                    snackbar.show();
+//                } catch (JSONException e) {
+////                    e.printStackTrace();
+//                    Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content),
+//                            "Error - Emit test - Extract JSON failed", Snackbar.LENGTH_LONG);
+//                    snackbar.show();
+//                }
+//            }
+//        });
 
-        mSocket.on("connection", new Emitter.Listener() {
+        mSocket.on("connect", new Emitter.Listener() {
             @Override public void call(final Object... args) {
                 runOnUiThread(new Runnable() {
                     @Override public void run() {
-                        JSONObject data = (JSONObject) args[0];
                         textConnectionStatus.setText("connected");
-                        Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content),
-                        "Connected", Snackbar.LENGTH_LONG);
-                        snackbar.show();
+                        showSnackBar("Connected to Socket");
                     }
                 });
             }
@@ -334,7 +341,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             }
         });
 
-        mSocket.on("sendSMS", new Emitter.Listener() {
+        mSocket.on("send-sms", new Emitter.Listener() {
             @Override public void call(final Object... args) {
                 runOnUiThread(new Runnable() {
                     @Override public void run() {
