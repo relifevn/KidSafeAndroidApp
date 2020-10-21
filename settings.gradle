@@ -1,2 +1,2 @@
 include ':app'
-rootProject.name='MyJavaApplication'
+rootProject.name='IOTS'

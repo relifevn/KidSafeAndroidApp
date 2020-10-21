@@ -1,5 +1,8 @@
 package com.example.myjavaapplication;
 
+import android.content.Context;
+import android.location.Location;
+import android.location.LocationManager;
 import android.os.Bundle;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
@@ -41,15 +44,86 @@ import org.json.JSONObject;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
 
-    private Button buttonCall, buttonSendSMS, buttonConnectSocket, buttonEmitTest;
+    private Button buttonCall, buttonSendSMS, buttonConnectSocket, buttonEmitTest, buttonGPSTest;
     private TextView textConnectionStatus;
 
     private static final int PERMISSION_REQUEST_CODE = 200;
     private View view;
-    LocationFinder finder;
     double longitude = 0.0, latitude = 0.0;
 
     private static final String TAG = "MyActivity";
+
+    public Context applicationContext;
+    Intent locationIntent = null;
+
+    private LocationManager mLocationManager = null;
+    private static final int LOCATION_INTERVAL = 1000;
+    private static final float LOCATION_DISTANCE = 10f;
+
+    boolean isInitLocationService = false;
+    private void initLocationService() {
+        try {
+            mLocationManager.requestLocationUpdates(
+                    LocationManager.NETWORK_PROVIDER, LOCATION_INTERVAL, LOCATION_DISTANCE,
+                    mLocationListeners[1]);
+            isInitLocationService = true;
+            showSnackBar("Init network provider");
+        } catch (java.lang.SecurityException ex) {
+            showSnackBar("Fail to request location update, ignore");
+        } catch (IllegalArgumentException ex) {
+            showSnackBar("Network provider does not exist, " + ex.getMessage());
+        }
+        try {
+            mLocationManager.requestLocationUpdates(
+                    LocationManager.GPS_PROVIDER, LOCATION_INTERVAL, LOCATION_DISTANCE,
+                    mLocationListeners[0]);
+            showSnackBar("Init GPS provider");
+            isInitLocationService = true;
+        } catch (java.lang.SecurityException ex) {
+            showSnackBar("Fail to request location update, ignore");
+        } catch (IllegalArgumentException ex) {
+            showSnackBar("GPS provider does not exist, " + ex.getMessage());
+        }
+    }
+
+    private class LocationListener implements android.location.LocationListener {
+        public Location mLastLocation;
+
+        public LocationListener(String provider) {
+            Log.e(TAG, "LocationListener " + provider);
+            mLastLocation = new Location(provider);
+        }
+
+        public Location getLastLocation() {
+            return mLastLocation;
+        }
+
+        @Override
+        public void onLocationChanged(Location location) {
+            Log.e(TAG, "onLocationChanged: " + location);
+            mLastLocation.set(location);
+        }
+
+        @Override
+        public void onProviderDisabled(String provider) {
+            Log.e(TAG, "onProviderDisabled: " + provider);
+        }
+
+        @Override
+        public void onProviderEnabled(String provider) {
+            Log.e(TAG, "onProviderEnabled: " + provider);
+        }
+
+        @Override
+        public void onStatusChanged(String provider, int status, Bundle extras) {
+            Log.e(TAG, "onStatusChanged: " + provider);
+        }
+    }
+
+    LocationListener[] mLocationListeners = new LocationListener[]{
+            new LocationListener(LocationManager.GPS_PROVIDER),
+            new LocationListener(LocationManager.NETWORK_PROVIDER)
+    };
 
     private Socket mSocket;
     {
@@ -60,19 +134,26 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
     }
 
+    private Location getLocation() {
+        Location location = mLocationListeners[0].mLastLocation;
+        if (location != null) {
+            showSnackBar("Location " + location.getLatitude() + "," + location.getLongitude());
+            return location;
+        }
+
+        location = mLocationListeners[1].mLastLocation;
+        if (location != null) {
+            showSnackBar("Location " + location.getLatitude() + "," + location.getLongitude());
+            return location;
+        }
+
+        showSnackBar("Can not get location");
+        return null;
+    }
+
     private void showSnackBar(String msg) {
         Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content), msg, Snackbar.LENGTH_LONG);
         snackbar.show();
-    }
-
-    private void showLocation() {
-        if (finder.canGetLocation()) {
-            latitude = finder.getLatitude();
-            longitude = finder.getLongitude();
-            this.showSnackBar("lat-lng " + latitude + " — " + longitude);
-        } else {
-            this.showSnackBar("Location permission not granted" + latitude + " — " + longitude);
-        }
     }
 
     @Override
@@ -91,7 +172,14 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             }
         });
 
-        finder = new LocationFinder(this);
+        // use this to start and trigger a service
+//        applicationContext = this.getApplicationContext();
+//        locationIntent = new Intent(applicationContext, LocationService.class);
+//        applicationContext.startService(locationIntent);
+        if (mLocationManager == null) {
+            mLocationManager = (LocationManager) this.getApplicationContext().getSystemService(Context.LOCATION_SERVICE);
+        }
+        initLocationService();
 
         /* Call Handler */
         buttonCall = (Button) findViewById(R.id.buttonCall);
@@ -122,6 +210,17 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 }
                 SmsManager smsManager = SmsManager.getDefault();
                 smsManager.sendTextMessage("0387358924", null, "Hello There!", null, null);
+            }
+        });
+
+        /* Test GPS */
+        buttonGPSTest = (Button) findViewById(R.id.buttonGPSTest);
+        buttonGPSTest.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View view) {
+                if (!isInitLocationService) {
+                    initLocationService();
+                }
+                getLocation();
             }
         });
 
